@@ -23,11 +23,13 @@ class Sleep(EventLoopCommand):
 
 async def blink(canvas, row, column, symbol='*'):
     while True:
+        await Sleep(random.randint(1, 50)*0.1)
+       # print(1)
         canvas.addstr(row, column, symbol, curses.A_DIM)
         await asyncio.sleep(0)
-
+        #print(2)
         await Sleep(2)
-
+        #print(3)
         canvas.addstr(row, column, symbol)
         await asyncio.sleep(0)
 
@@ -55,6 +57,7 @@ def sleep_frame(coroutines):
     for coroutine in coroutines.copy():
         time_to_sleep = coroutine.send(None)
     # print(time_to_sleep.seconds)
+  # print(time_to_sleep.seconds)
     time.sleep(time_to_sleep.seconds)
 
 
@@ -66,7 +69,7 @@ def get_star_pos(size):
 
 def draw(canvas):
     TIC_TIMEOUT = 0.1
-    num_stars = random.randint(5, 100)
+    num_stars = random.randint(5, 1000)
     coroutines = []
     win_size = window.getmaxyx(canvas)
 
@@ -76,9 +79,11 @@ def draw(canvas):
         coroutines.append(blink(canvas, row, column, star_style))
 
     while True:
+        sleep_frame(coroutines)
         for _ in range(4):
             new_frame(coroutines, curses, canvas)
             sleep_frame(coroutines)
+
         time.sleep(TIC_TIMEOUT)
 
 
