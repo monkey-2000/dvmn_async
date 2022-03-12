@@ -3,8 +3,11 @@
 #
 import curses
 import asyncio
+import random
 import time
-
+from _curses import window
+import pdb
+import logging
 
 class EventLoopCommand:
 
@@ -51,19 +54,26 @@ def new_frame(coroutines, curses, canvas):
 def sleep_frame(coroutines):
     for coroutine in coroutines.copy():
         time_to_sleep = coroutine.send(None)
-    #print(time_to_sleep.seconds)
+    # print(time_to_sleep.seconds)
     time.sleep(time_to_sleep.seconds)
 
 
+def get_star_pos(size):
+    x = random.randint(1, size[0]-1)
+    y = random.randint(1, size[1]-1)
+    return x, y
+
+
 def draw(canvas):
-    row, column = (5, 20)
-    d_col = 10
     TIC_TIMEOUT = 0.1
-
+    num_stars = random.randint(5, 100)
     coroutines = []
+    win_size = window.getmaxyx(canvas)
 
-    for i in range(5):
-        coroutines.append(blink(canvas, row, column + d_col * i))
+    for _ in range(num_stars):
+        row, column = get_star_pos(win_size)
+        star_style = random.choice('+*.:')
+        coroutines.append(blink(canvas, row, column, star_style))
 
     while True:
         for _ in range(4):
