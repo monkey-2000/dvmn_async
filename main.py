@@ -1,5 +1,4 @@
 import curses
-import asyncio
 import random
 import time
 from curses_tools import *
