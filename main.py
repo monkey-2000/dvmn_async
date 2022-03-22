@@ -14,33 +14,13 @@ SPACESHIP_VEL_MUL_ROW = 10
 SPACESHIP_VEL_MUL_COL = 10
 
 
-class Logger:
-    """logging"""
-
-    def __init__(self, file_name='logs'):
-        self.logger = self._logger(file_name)
-
-    def _logger(self, file_name):
-        logger = logging.getLogger(file_name)
-        logger.setLevel(logging.DEBUG)
-        # create file handler which logs even debug messages
-        fh = logging.FileHandler(f'{file_name}.log')
-        fh.setLevel(logging.DEBUG)
-        logger.addHandler(fh)
-        return logger
-
-
-LOG = Logger()
-
-
 class EventLoopCommand:
     def __await__(self):
         return (yield self)
 
 
 class CoroutineParams(EventLoopCommand):
-    def __init__(self, seconds, new_pos=None):
-        self.sleep_seconds = seconds
+    def __init__(self, new_pos=None):
         self.spaceship_pos = new_pos
 
 
@@ -48,36 +28,37 @@ def calc_dely(time):
     return int(time/TIC_TIMEOUT)
 
 
+async def sleep(sleep_frames=1):
+    for _ in range(sleep_frames):
+        await asyncio.sleep(0)
+
+
 async def blink(canvas, row, column, symbol='*'):
     """star animation"""
     while True:
 
         rand_dely = random.randint(0, 1000) * 0.01
-        for _ in range(calc_dely(rand_dely)):
-            await asyncio.sleep(0)
+        await sleep(calc_dely(rand_dely))
+
 
         canvas.addstr(row, column, symbol, curses.A_DIM)
 
-        for _ in range(calc_dely(2)):
-            await asyncio.sleep(0)
+        await sleep(calc_dely(2))
 
         canvas.addstr(row, column, symbol)
-        await asyncio.sleep(0)
+        await sleep()
 
-        for _ in range(calc_dely(0.3)):
-            await asyncio.sleep(0)
+        await sleep(calc_dely(0.3))
 
         canvas.addstr(row, column, symbol, curses.A_BOLD)
-        await asyncio.sleep(0)
+        await sleep()
 
-        for _ in range(calc_dely(0.5)):
-            await asyncio.sleep(0)
+        await sleep(calc_dely(0.5))
 
         canvas.addstr(row, column, symbol)
-        await asyncio.sleep(0)
+        await sleep()
 
-        for _ in range(calc_dely(0.3)):
-            await asyncio.sleep(0)
+        await sleep(calc_dely(0.3))
 
 
 async def fire(canvas,
@@ -97,10 +78,10 @@ async def fire(canvas,
     row, column = start_row, start_column
 
     canvas.addstr(round(row), round(column), cur_s)
-    await asyncio.sleep(0)
+    await sleep()
 
     canvas.addstr(round(row), round(column), next(symbols))
-    await asyncio.sleep(0)
+    await sleep()
     canvas.addstr(round(row), round(column), next(symbols))
 
     row += rows_speed
@@ -155,7 +136,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         draw_frame(canvas, start_row, start_column, frame)
 
         for i in range(2):
-            await CoroutineParams(0, (start_row + 2, start_column + 2))
+            await CoroutineParams((start_row + 2, start_column + 2))
 
         draw_frame(canvas, start_row, start_column, frame, negative=True)
 
@@ -164,8 +145,6 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
 
         start_row += row_direction * SPACESHIP_VEL_MUL_ROW
         start_column += column_direction * SPACESHIP_VEL_MUL_COL
-
-        LOG.logger.debug(f'start_column,{start_column}, start_row {start_row}')
 
         start_row, start_column = is_pos_correct(frame, canvas,
                                                  start_row, start_column)
@@ -205,7 +184,6 @@ def get_pos_from_command(command):
         if command.spaceship_pos:
             row, column = command.spaceship_pos
             return row, column
-            # LOG.logger.debug(f'spaceship_pos{row}, {column}')
 
 
 def draw(canvas):
@@ -230,42 +208,19 @@ def draw(canvas):
     coroutines.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
 
     # ------draw frames------
-    sleeping_coroutines = [[0, coroutine] for coroutine in coroutines]
-    while sleeping_coroutines:
+    while coroutines:
 
-        for timeout, coroutine in sleeping_coroutines:
-            LOG.logger.debug(f'timeout,{timeout}, coroutine {coroutine}')
-
-        sleeping_coroutines = [[timeout - TIC_TIMEOUT, coroutine]
-                               for timeout, coroutine in sleeping_coroutines]
-
-        # divide coroutine on an active and sleeping
-        active_coroutines = [[timeout, coroutine] for timeout, coroutine in sleeping_coroutines
-                             if timeout <= 0]
-        sleeping_coroutines = [[timeout, coroutine] for timeout, coroutine in sleeping_coroutines
-                               if timeout > 0]
-
-        for _, coroutine in active_coroutines:
+        for i, coroutine in enumerate(coroutines.copy()):
             try:
                 command = coroutine.send(None)
-                seconds_to_sleep = get_sleep_command(command)
                 spaceship_position = get_pos_from_command(command)
                 if spaceship_position:
                     spaceship_row, spaceship_column = spaceship_position
-                # LOG.logger.debug(f'coroutine,{coroutine}')
-            except StopIteration:
-                if seconds_to_sleep:
-                    sleeping_coroutines.append([seconds_to_sleep, fire(canvas, spaceship_row,
-                                                                       spaceship_column)])
-                else:
-                    sleeping_coroutines.append([0, fire(canvas, spaceship_row,
-                                                        spaceship_column)])
-                continue  # выкидываем истощившуюся корутины
 
-            if seconds_to_sleep:
-                sleeping_coroutines.append([seconds_to_sleep, coroutine])
-            else:
-                sleeping_coroutines.append([0, coroutine])
+            except StopIteration:
+                coroutines.remove(coroutine)
+                coroutines.append(fire(canvas, spaceship_row, spaceship_column))
+                continue
 
         curses.curs_set(False)
         canvas.refresh()
