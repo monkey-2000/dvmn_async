@@ -44,26 +44,40 @@ class CoroutineParams(EventLoopCommand):
         self.spaceship_pos = new_pos
 
 
+def calc_dely(time):
+    return int(time/TIC_TIMEOUT)
+
+
 async def blink(canvas, row, column, symbol='*'):
     """star animation"""
     while True:
-        await CoroutineParams(random.randint(0, 1000) * 0.01)
+
+        rand_dely = random.randint(0, 1000) * 0.01
+        for _ in range(calc_dely(rand_dely)):
+            await asyncio.sleep(0)
+
         canvas.addstr(row, column, symbol, curses.A_DIM)
-        await CoroutineParams(2)
+
+        for _ in range(calc_dely(2)):
+            await asyncio.sleep(0)
+
         canvas.addstr(row, column, symbol)
         await asyncio.sleep(0)
 
-        await CoroutineParams(0.3)
+        for _ in range(calc_dely(0.3)):
+            await asyncio.sleep(0)
 
         canvas.addstr(row, column, symbol, curses.A_BOLD)
         await asyncio.sleep(0)
 
-        await CoroutineParams(0.5)
+        for _ in range(calc_dely(0.5)):
+            await asyncio.sleep(0)
 
         canvas.addstr(row, column, symbol)
         await asyncio.sleep(0)
 
-        await CoroutineParams(0.3)
+        for _ in range(calc_dely(0.3)):
+            await asyncio.sleep(0)
 
 
 async def fire(canvas,
