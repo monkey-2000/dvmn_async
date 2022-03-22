@@ -6,7 +6,6 @@ from curses_tools import *
 from itertools import cycle as cycle
 import os
 from statistics import median as median
-import logging
 
 TIC_TIMEOUT = 0.1
 ANIMATION_FOLDER = 'files'
@@ -40,9 +39,7 @@ async def blink(canvas, row, column, symbol='*'):
         rand_dely = random.randint(0, 1000) * 0.01
         await sleep(calc_dely(rand_dely))
 
-
         canvas.addstr(row, column, symbol, curses.A_DIM)
-
         await sleep(calc_dely(2))
 
         canvas.addstr(row, column, symbol)
@@ -167,16 +164,6 @@ def load_frames(folder, key_word='sc'):
         with open(path_to_frame, 'r') as f:
             frames.append(f.read())
     return frames
-
-
-def get_sleep_command(command):
-    """
-    :param command: CoroutineParams()
-    :return: seconds to sleep value or None
-    """
-    if command:
-        seconds_to_sleep = command.sleep_seconds
-        return seconds_to_sleep
 
 
 def get_pos_from_command(command):
