@@ -1,3 +1,4 @@
+import asyncio
 import curses
 import random
 import time
@@ -5,9 +6,31 @@ from curses_tools import *
 from itertools import cycle as cycle
 import os
 from statistics import median as median
+import logging
 
 TIC_TIMEOUT = 0.1
 ANIMATION_FOLDER = 'files'
+SPACESHIP_VEL_MUL_ROW = 10
+SPACESHIP_VEL_MUL_COL = 10
+
+
+class Logger:
+    """logging"""
+
+    def __init__(self, file_name='logs'):
+        self.logger = self._logger(file_name)
+
+    def _logger(self, file_name):
+        logger = logging.getLogger(file_name)
+        logger.setLevel(logging.DEBUG)
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler(f'{file_name}.log')
+        fh.setLevel(logging.DEBUG)
+        logger.addHandler(fh)
+        return logger
+
+
+LOG = Logger()
 
 
 class EventLoopCommand:
@@ -15,32 +38,32 @@ class EventLoopCommand:
         return (yield self)
 
 
-class Sleep(EventLoopCommand):
+class CoroutineParams(EventLoopCommand):
     def __init__(self, seconds, new_pos=None):
-        self.seconds = seconds
-        self.new_pos = new_pos  ## position of fire
+        self.sleep_seconds = seconds
+        self.spaceship_pos = new_pos
 
 
 async def blink(canvas, row, column, symbol='*'):
     """star animation"""
     while True:
-        await Sleep(random.randint(0, 1000) * 0.01)
+        await CoroutineParams(random.randint(0, 1000) * 0.01)
         canvas.addstr(row, column, symbol, curses.A_DIM)
-        await Sleep(2)
+        await CoroutineParams(2)
         canvas.addstr(row, column, symbol)
-        await Sleep(0)
+        await asyncio.sleep(0)
 
-        await Sleep(0.3)
+        await CoroutineParams(0.3)
 
         canvas.addstr(row, column, symbol, curses.A_BOLD)
-        await Sleep(0)
+        await asyncio.sleep(0)
 
-        await Sleep(0.5)
+        await CoroutineParams(0.5)
 
         canvas.addstr(row, column, symbol)
-        await Sleep(0)
+        await asyncio.sleep(0)
 
-        await Sleep(0.3)
+        await CoroutineParams(0.3)
 
 
 async def fire(canvas,
@@ -53,15 +76,17 @@ async def fire(canvas,
     if type(symbols) is list:
         symbols = cycle(symbols)
     cur_s = next(symbols)
-    start_row, start_column = pos_correct(cur_s, canvas,
-                                          [start_row, start_column])
+
+    start_row, start_column = is_pos_correct(cur_s, canvas,
+                                             start_row, start_column)
 
     row, column = start_row, start_column
+
     canvas.addstr(round(row), round(column), cur_s)
-    await Sleep(0)
+    await asyncio.sleep(0)
 
     canvas.addstr(round(row), round(column), next(symbols))
-    await Sleep(0)
+    await asyncio.sleep(0)
     canvas.addstr(round(row), round(column), next(symbols))
 
     row += rows_speed
@@ -75,7 +100,7 @@ async def fire(canvas,
 
     while 0 < row < max_row and 0 < column < max_column:
         canvas.addstr(round(row), round(column), symbol)
-        await Sleep(0)
+        await asyncio.sleep(0)
         canvas.addstr(round(row), round(column), ' ')
         row += rows_speed
         column += columns_speed
@@ -83,62 +108,90 @@ async def fire(canvas,
 
 def get_star_pos(size):
     """get random star position"""
-    x = random.randint(1, size[0] - 1)
-    y = random.randint(1, size[1] - 1)
-    return x, y
+    pos = []
+    for dim in size:
+        pos.append(random.randint(1, dim - 1))
+    return pos
 
 
-def pos_correct(text, canvas, position, borders=[2, 2]):
-    """chek correcting of text pos"""
+def is_pos_correct(text, canvas, t_row, t_col, frame_borders={'row': 2, 'col': 2}):
+    """text pos (moving obj) validation: text must be in a frame"""
     rows_in_symb, columns_in_symb = get_frame_size(text)
-    max_row, max_col = canvas.getmaxyx()  #
-    mpos = (median([position[0], position[0] + rows_in_symb]),
-            median([position[1], position[1] + columns_in_symb]))
+    max_row, max_col = canvas.getmaxyx()
 
-    ans_pos = position
-    if mpos[0] < borders[0]:  #chekup rows
-        ans_pos[0] = borders[0] + 1
-    elif mpos[0] > max_row - borders[0]:
-        ans_pos[0] = max_row - 2 * (borders[0] + 1)
+    frame_size = {'row': max_row,
+                  'col': max_col}
 
-    if mpos[1] < borders[1]:  #chekup cols
-        ans_pos[1] = borders[1]
-    elif mpos[1] > max_col - borders[1]:
-        ans_pos[1] = max_col - 2 * (borders[1] + 1)
+    mean_position = {'row': median([t_row, t_row + rows_in_symb]),
+                     'col': median([t_col, t_col + columns_in_symb])}
+
+    ans_pos = [t_row, t_col]
+    for i, dimension in enumerate(mean_position.keys()):
+        if mean_position[dimension] < frame_borders[dimension]:
+            ans_pos[i] = frame_borders[dimension] + 1
+        elif mean_position[dimension] > frame_size[dimension] - frame_borders[dimension]:
+            ans_pos[i] = frame_size[dimension] - 2 * (frame_borders[dimension] + 1)
+
     return ans_pos
 
 
-async def animate_spaceship(canvas, start_row, start_column, symbols):
-    """spaceship frames"""
-    sc = cycle(symbols)
-    symbol = next(sc)
-    while True:
-        draw_frame(canvas, start_row, start_column, symbol)
+async def animate_spaceship(canvas, start_row, start_column, frames):
+    """Display animation of spaceship"""
+    for frame in cycle(frames):
+        draw_frame(canvas, start_row, start_column, frame)
+
         for i in range(2):
-            await Sleep(0, (start_row + 2, start_column + 2))
-        draw_frame(canvas, start_row, start_column, symbol, negative=True)
-        symbol = next(sc)
+            await CoroutineParams(0, (start_row + 2, start_column + 2))
+
+        draw_frame(canvas, start_row, start_column, frame, negative=True)
+
+
         row_direction, column_direction, key = read_controls(canvas)
 
-        start_row += row_direction
-        start_column += column_direction
+        start_row += row_direction * SPACESHIP_VEL_MUL_ROW
+        start_column += column_direction * SPACESHIP_VEL_MUL_COL
 
-        [start_row, start_column
-         ] = pos_correct(symbol, canvas,
-                         [start_row, start_column])  ## check pos correct
+        LOG.logger.debug(f'start_column,{start_column}, start_row {start_row}')
+
+        start_row, start_column = is_pos_correct(frame, canvas,
+                                                 start_row, start_column)
 
 
 def load_frames(folder, key_word='sc'):
-    frs_path = os.path.join(os.getcwd(), folder)
-    files = [
-        os.path.join(frs_path, file) for file in os.listdir(frs_path)
-        if 'sc' in file
-    ]
-    frs = []
-    for file in files:
-        with open(file, 'r') as f:
-            frs.append(f.read())
-    return frs
+    """
+    Load frames. Spaceship frames is default.
+    :param folder: name of dir with frames in project dir
+    :param key_word: pattern in searched frame filename
+    :return: list of frames
+    """
+    path_to_dir = os.path.join(os.getcwd(), folder)
+    frame_paths = [
+                os.path.join(path_to_dir, frame_file_name) for frame_file_name in
+                os.listdir(path_to_dir) if key_word in frame_file_name
+                ]
+    frames = []
+    for path_to_frame in frame_paths:
+        with open(path_to_frame, 'r') as f:
+            frames.append(f.read())
+    return frames
+
+
+def get_sleep_command(command):
+    """
+    :param command: CoroutineParams()
+    :return: seconds to sleep value or None
+    """
+    if command:
+        seconds_to_sleep = command.sleep_seconds
+        return seconds_to_sleep
+
+
+def get_pos_from_command(command):
+    if command:
+        if command.spaceship_pos:
+            row, column = command.spaceship_pos
+            return row, column
+            # LOG.logger.debug(f'spaceship_pos{row}, {column}')
 
 
 def draw(canvas):
@@ -146,50 +199,69 @@ def draw(canvas):
     curses.window.nodelay(canvas, True)
     win_size = curses.window.getmaxyx(canvas)
 
+    coroutines = []
     # ------stars-------
-    num_stars = random.randint(5, 100)
-    stars = []
+    num_stars = random.randint(5, 6)
+
     for _ in range(num_stars):
         row, column = get_star_pos(win_size)
         star_style = random.choice('+*.:')
-        stars.append(blink(canvas, row, column, star_style))
+        coroutines.append(blink(canvas, row, column, star_style))
 
-    #### ------spacecraft and fire------
-    start_row, start_column = win_size[0] / 2, win_size[1] / 2
-    stars.append(fire(canvas, start_row + 2, start_column + 2))
-    symbols = load_frames(ANIMATION_FOLDER)
-    spacecraft = animate_spaceship(canvas, start_row, start_column, symbols)
+    # ------spacecraft and fire------
+    spaceship_row, spaceship_column = win_size[0] / 2, win_size[1] / 2
+    coroutines.append(fire(canvas, spaceship_row + 2, spaceship_column + 2))
 
-    ### draw frames
-    sleeping_stars = [[0, star] for star in stars]
-    while sleeping_stars:
-        sleeping_stars = [[timeout - TIC_TIMEOUT, star]
-                          for timeout, star in sleeping_stars]
+    spaceship_frames = load_frames(ANIMATION_FOLDER)
+    coroutines.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
 
-        # divide obj on an active and passive
-        active_stars = [[timeout, star] for timeout, star in sleeping_stars
-                        if timeout <= 0]
-        sleeping_stars = [[timeout, star] for timeout, star in sleeping_stars
-                          if timeout > 0]
+    # ------draw frames------
+    sleeping_coroutines = [[0, coroutine] for coroutine in coroutines]
+    while sleeping_coroutines:
 
-        ##stars and fire
-        for _, star in active_stars:
+        for timeout, coroutine in sleeping_coroutines:
+            LOG.logger.debug(f'timeout,{timeout}, coroutine {coroutine}')
+
+        sleeping_coroutines = [[timeout - TIC_TIMEOUT, coroutine]
+                               for timeout, coroutine in sleeping_coroutines]
+
+        # divide coroutine on an active and sleeping
+        active_coroutines = [[timeout, coroutine] for timeout, coroutine in sleeping_coroutines
+                             if timeout <= 0]
+        sleeping_coroutines = [[timeout, coroutine] for timeout, coroutine in sleeping_coroutines
+                               if timeout > 0]
+
+        for _, coroutine in active_coroutines:
             try:
-                sleep_command = star.send(None)
+                command = coroutine.send(None)
+                seconds_to_sleep = get_sleep_command(command)
+                spaceship_position = get_pos_from_command(command)
+                if spaceship_position:
+                    spaceship_row, spaceship_column = spaceship_position
+                # LOG.logger.debug(f'coroutine,{coroutine}')
             except StopIteration:
-                fr = fire(canvas, sc_info.new_pos[0], sc_info.new_pos[1])
-                sleeping_stars.append([sc_info.seconds, fr])
+                if seconds_to_sleep:
+                    sleeping_coroutines.append([seconds_to_sleep, fire(canvas, spaceship_row,
+                                                                       spaceship_column)])
+                else:
+                    sleeping_coroutines.append([0, fire(canvas, spaceship_row,
+                                                        spaceship_column)])
                 continue  # выкидываем истощившуюся корутины
-            seconds_to_sleep = sleep_command.seconds
-            sleeping_stars.append([seconds_to_sleep, star])
-        ## spacecraft
-        sc_info = spacecraft.send(None)
+
+            if seconds_to_sleep:
+                sleeping_coroutines.append([seconds_to_sleep, coroutine])
+            else:
+                sleeping_coroutines.append([0, coroutine])
+
         curses.curs_set(False)
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
 
-if __name__ == '__main__':
+def main():
     curses.update_lines_cols()
-
     curses.wrapper(draw)
+
+
+if __name__ == '__main__':
+    main()
