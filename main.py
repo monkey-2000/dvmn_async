@@ -1,17 +1,21 @@
 import asyncio
 import curses
 import random
+import re
 import time
-from curses_tools import *
+from curses_tools import read_controls, draw_frame, get_frame_size
 from itertools import cycle as cycle
 import os
-from statistics import median as median
+from statistics import mean as mean
 
 TIC_TIMEOUT = 0.1
 ANIMATION_FOLDER = 'files'
 SPACESHIP_VEL_MUL_ROW = 10
 SPACESHIP_VEL_MUL_COL = 10
 
+
+class NoFrameFile(Exception):
+    pass
 
 class EventLoopCommand:
     def __await__(self):
@@ -23,7 +27,7 @@ class CoroutineParams(EventLoopCommand):
         self.spaceship_pos = new_pos
 
 
-def calc_dely(time):
+def calc_delay(time):
     return int(time/TIC_TIMEOUT)
 
 
@@ -36,26 +40,26 @@ async def blink(canvas, row, column, symbol='*'):
     """star animation"""
     while True:
 
-        rand_dely = random.randint(0, 1000) * 0.01
-        await sleep(calc_dely(rand_dely))
+        rand_delay = random.randint(0, 1000) * 0.01
+        await sleep(calc_delay(rand_delay))
 
         canvas.addstr(row, column, symbol, curses.A_DIM)
-        await sleep(calc_dely(2))
+        await sleep(calc_delay(2))
 
         canvas.addstr(row, column, symbol)
         await sleep()
 
-        await sleep(calc_dely(0.3))
+        await sleep(calc_delay(0.3))
 
         canvas.addstr(row, column, symbol, curses.A_BOLD)
         await sleep()
 
-        await sleep(calc_dely(0.5))
+        await sleep(calc_delay(0.5))
 
         canvas.addstr(row, column, symbol)
         await sleep()
 
-        await sleep(calc_dely(0.3))
+        await sleep(calc_delay(0.3))
 
 
 async def fire(canvas,
@@ -65,12 +69,13 @@ async def fire(canvas,
                columns_speed=0,
                symbols=['*', 'O', ' ']):
     """Display animation of gun shot. Direction and speed can be specified."""
-    if type(symbols) is list:
-        symbols = cycle(symbols)
+
+    symbols = cycle(symbols)
+
     cur_s = next(symbols)
 
-    start_row, start_column = is_pos_correct(cur_s, canvas,
-                                             start_row, start_column)
+    start_row, start_column = get_corrected_position(cur_s, canvas,
+                                                     start_row, start_column)
 
     row, column = start_row, start_column
 
@@ -106,34 +111,49 @@ def get_star_pos(size):
     return pos
 
 
-def is_pos_correct(text, canvas, t_row, t_col, frame_borders={'row': 2, 'col': 2}):
+def get_corrected_position(obj, canvas, obj_start_row, obj_start_col, frame_borders={'row': 1, 'col': 1}):
     """text pos (moving obj) validation: text must be in a frame"""
-    rows_in_symb, columns_in_symb = get_frame_size(text)
+    rows_in_obj, columns_in_obj = get_frame_size(obj)
+
     max_row, max_col = canvas.getmaxyx()
 
-    frame_size = {'row': max_row,
-                  'col': max_col}
+    centre_obj_position = {'row': mean([obj_start_row, obj_start_row + rows_in_obj]),
+                     'col': mean([obj_start_col, obj_start_col + columns_in_obj])}
 
-    mean_position = {'row': median([t_row, t_row + rows_in_symb]),
-                     'col': median([t_col, t_col + columns_in_symb])}
+    half_obj = {'row': int(rows_in_obj/2),
+                'col': int(columns_in_obj/2)}
 
-    ans_pos = [t_row, t_col]
-    for i, dimension in enumerate(mean_position.keys()):
-        if mean_position[dimension] < frame_borders[dimension]:
-            ans_pos[i] = frame_borders[dimension] + 1
-        elif mean_position[dimension] > frame_size[dimension] - frame_borders[dimension]:
-            ans_pos[i] = frame_size[dimension] - 2 * (frame_borders[dimension] + 1)
+    max_obj_centre_pos = {'row': max_row - frame_borders['row'],
+               'col': max_col - frame_borders['col']}
 
-    return ans_pos
+    min_obj_centre_pos = {'row': frame_borders['row'],
+                          'col': frame_borders['col']}
+
+
+    obj_position = [obj_start_row, obj_start_col]
+
+    ## check object position in row and col dimensions
+    for i, dim in enumerate(centre_obj_position.keys()):
+
+        if centre_obj_position[dim] < min_obj_centre_pos[dim]:
+            obj_position[i] = min_obj_centre_pos[dim]
+
+        elif centre_obj_position[dim] > max_obj_centre_pos[dim] :
+            obj_position[i] = max_obj_centre_pos[dim] - half_obj[dim]
+
+    return obj_position
 
 
 async def animate_spaceship(canvas, start_row, start_column, frames):
     """Display animation of spaceship"""
+
+    for frame in frames.copy():
+        frames.extend([frame, frame])
+
     for frame in cycle(frames):
         draw_frame(canvas, start_row, start_column, frame)
 
-        for i in range(2):
-            await CoroutineParams((start_row + 2, start_column + 2))
+        await CoroutineParams((start_row + 2, start_column + 2))
 
         draw_frame(canvas, start_row, start_column, frame, negative=True)
 
@@ -143,8 +163,8 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         start_row += row_direction * SPACESHIP_VEL_MUL_ROW
         start_column += column_direction * SPACESHIP_VEL_MUL_COL
 
-        start_row, start_column = is_pos_correct(frame, canvas,
-                                                 start_row, start_column)
+        start_row, start_column = get_corrected_position(frame, canvas,
+                                                         start_row, start_column)
 
 
 def load_frames(folder, key_word='sc'):
@@ -154,27 +174,29 @@ def load_frames(folder, key_word='sc'):
     :param key_word: pattern in searched frame filename
     :return: list of frames
     """
+    pattern = f'\w*{key_word}\w*.txt'
     path_to_dir = os.path.join(os.getcwd(), folder)
     frame_paths = [
                 os.path.join(path_to_dir, frame_file_name) for frame_file_name in
-                os.listdir(path_to_dir) if key_word in frame_file_name
+                os.listdir(path_to_dir) if re.fullmatch(pattern, frame_file_name)
                 ]
-    frames = []
-    for path_to_frame in frame_paths:
-        with open(path_to_frame, 'r') as f:
-            frames.append(f.read())
-    return frames
-
-
-def get_pos_from_command(command):
-    if command:
-        if command.spaceship_pos:
-            row, column = command.spaceship_pos
-            return row, column
+    if frame_paths:
+        frames = []
+        for path_to_frame in frame_paths:
+            with open(path_to_frame, 'r') as f:
+                frames.append(f.read())
+        return frames
+    else:
+        raise NoFrameFile('No frame files here')
 
 
 def draw(canvas):
     """Draw frames"""
+    try:
+        spaceship_frames = load_frames(ANIMATION_FOLDER)
+    except NoFrameFile:
+        exit('Frame files not found in ANIMATION_FOLDER directory')
+
     curses.window.nodelay(canvas, True)
     win_size = curses.window.getmaxyx(canvas)
 
@@ -191,7 +213,6 @@ def draw(canvas):
     spaceship_row, spaceship_column = win_size[0] / 2, win_size[1] / 2
     coroutines.append(fire(canvas, spaceship_row + 2, spaceship_column + 2))
 
-    spaceship_frames = load_frames(ANIMATION_FOLDER)
     coroutines.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
 
     # ------draw frames------
@@ -200,9 +221,10 @@ def draw(canvas):
         for i, coroutine in enumerate(coroutines.copy()):
             try:
                 command = coroutine.send(None)
-                spaceship_position = get_pos_from_command(command)
-                if spaceship_position:
-                    spaceship_row, spaceship_column = spaceship_position
+                try:
+                    spaceship_row, spaceship_column = command.spaceship_pos
+                except AttributeError:
+                    pass
 
             except StopIteration:
                 coroutines.remove(coroutine)
