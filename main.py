@@ -8,11 +8,16 @@ from itertools import cycle as cycle
 import os
 from statistics import mean as mean
 
+from garbage_tools import get_garbage_column, crate_new_garbage_frame_list
+from obstracles import Obstacle, find_obstracles, show_obstacles
+from physics import update_speed
+
 TIC_TIMEOUT = 0.1
 ANIMATION_FOLDER = 'files'
 SPACESHIP_VEL_MUL_ROW = 10
 SPACESHIP_VEL_MUL_COL = 10
-
+COROUTINES = []
+OBSTRACLES = []
 
 class NoFrameFile(Exception):
     pass
@@ -158,13 +163,61 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         draw_frame(canvas, start_row, start_column, frame, negative=True)
 
 
-        row_direction, column_direction, key = read_controls(canvas)
+        row_direction, column_direction, is_space_pressed = read_controls(canvas)
 
-        start_row += row_direction * SPACESHIP_VEL_MUL_ROW
-        start_column += column_direction * SPACESHIP_VEL_MUL_COL
+        row_speed = row_direction * SPACESHIP_VEL_MUL_ROW
+        column_speed = column_direction * SPACESHIP_VEL_MUL_ROW
+
+        row_speed, column_speed = update_speed(row_speed,column_speed,row_direction,
+                                                column_direction)
+
+        start_row += row_speed
+        start_column += column_speed
 
         start_row, start_column = get_corrected_position(frame, canvas,
                                                          start_row, start_column)
+
+        # spaceship fire
+        if is_space_pressed:
+            COROUTINES.append(fire(canvas, start_row, start_column))
+
+
+
+async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
+    """Animate garbage, flying from top to bottom.
+     Сolumn position will stay same, as specified on start."""
+    rows_number, columns_number = canvas.getmaxyx()
+    print(column)
+    column = max(column, 0)
+    column = min(column, columns_number - 1)
+
+    row = 0
+
+    uid = len(OBSTRACLES) + 1
+    rows_size, columns_size = get_frame_size(garbage_frame)
+    OBSTRACLES.append(Obstacle(row,column, rows_size, columns_size, uid))
+
+    while row < rows_number:
+        draw_frame(canvas, row, column, garbage_frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column, garbage_frame, negative=True)
+        row += speed
+
+        ind = find_obstracles(OBSTRACLES, uid)
+        OBSTRACLES[ind].move_to(row, column)
+
+async def fill_orbit_with_garbage(frames, win_size, canvas, garbage_num=5):
+    """ """
+    while True:
+        await sleep(calc_delay(1))
+        new_garbage_frame_list = crate_new_garbage_frame_list(frames, garbage_num)
+
+        for garbage_frame in new_garbage_frame_list:
+            garbage_column = get_garbage_column(win_size)
+            COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
+
+        show_obstacles(canvas, OBSTRACLES)
+        await asyncio.sleep(0)
 
 
 def load_frames(folder, key_word='sc'):
@@ -197,38 +250,54 @@ def draw(canvas):
     except NoFrameFile:
         exit('Frame files not found in ANIMATION_FOLDER directory')
 
+    garbage_file_names = ['hubble', 'trash_small']
+    garbage_frames = []
+    for garbage_file_name in garbage_file_names:
+        try:
+            garbage_frame = load_frames(ANIMATION_FOLDER, key_word=garbage_file_name)
+        except NoFrameFile:
+            exit(f'Frame files {garbage_file_name} not found in ANIMATION_FOLDER directory')
+        else:
+            #garbage.append((garbage_frame, garbage_file_name))
+            garbage_frames.append(garbage_frame[0])
+
+
+
     curses.window.nodelay(canvas, True)
     win_size = curses.window.getmaxyx(canvas)
 
-    coroutines = []
+    #coroutines = []
+
+    # ------garbage-------
+    COROUTINES.append(fill_orbit_with_garbage(garbage_frames, win_size, canvas, 2))
     # ------stars-------
     num_stars = random.randint(5, 6)
 
     for _ in range(num_stars):
         row, column = get_star_pos(win_size)
         star_style = random.choice('+*.:')
-        coroutines.append(blink(canvas, row, column, star_style))
+        COROUTINES.append(blink(canvas, row, column, star_style))
 
     # ------spacecraft and fire------
     spaceship_row, spaceship_column = win_size[0] / 2, win_size[1] / 2
-    coroutines.append(fire(canvas, spaceship_row + 2, spaceship_column + 2))
+    COROUTINES.append(fire(canvas, spaceship_row + 2, spaceship_column + 2))
 
-    coroutines.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
+    COROUTINES.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
 
     # ------draw frames------
-    while coroutines:
+    while COROUTINES:
 
-        for i, coroutine in enumerate(coroutines.copy()):
+        for i, coroutine in enumerate(COROUTINES.copy()):
             try:
                 command = coroutine.send(None)
-                try:
-                    spaceship_row, spaceship_column = command.spaceship_pos
-                except AttributeError:
-                    pass
+                # try:
+                #     spaceship_row, spaceship_column = command.spaceship_pos
+                # except AttributeError:
+                #     pass
 
             except StopIteration:
-                coroutines.remove(coroutine)
-                coroutines.append(fire(canvas, spaceship_row, spaceship_column))
+                COROUTINES.remove(coroutine)
+              #  COROUTINES.append(fire(canvas, spaceship_row, spaceship_column))
                 continue
 
         curses.curs_set(False)
