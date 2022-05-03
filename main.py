@@ -285,7 +285,12 @@ def draw(canvas):
     except NoFrameFile:
         exit('Frame files not found in ANIMATION_FOLDER directory')
 
-    garbage_file_names = ['hubble', 'trash_small']
+    garbage_file_names = [
+        'hubble', 'trash_small', 'duck',
+        'lamp', 'trash_large', 'trash_small',
+        'trash_xl'
+    ]
+
     garbage_frames = []
     for garbage_file_name in garbage_file_names:
         try:
