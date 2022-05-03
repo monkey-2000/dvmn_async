@@ -1,13 +1,17 @@
+import os
+import logging
+
 import asyncio
 import curses
 import random
 import re
 import time
-from curses_tools import read_controls, draw_frame, get_frame_size
-from itertools import cycle as cycle
-import os
 from statistics import mean as mean
 
+from curses_tools import read_controls, draw_frame, get_frame_size
+from itertools import cycle as cycle
+
+from destroy_tools import explode, show_gameover
 from garbage_tools import get_garbage_column, crate_new_garbage_frame_list
 from obstracles import Obstacle, find_obstracles, show_obstacles
 from physics import update_speed
@@ -18,9 +22,11 @@ SPACESHIP_VEL_MUL_ROW = 10
 SPACESHIP_VEL_MUL_COL = 10
 COROUTINES = []
 OBSTRACLES = []
+OBSTRACLES_IN_LAST_COLLISIONS = []
 
 class NoFrameFile(Exception):
     pass
+
 
 class EventLoopCommand:
     def __await__(self):
@@ -67,6 +73,13 @@ async def blink(canvas, row, column, symbol='*'):
         await sleep(calc_delay(0.3))
 
 
+def find_collision_with_obstacle(row, column):
+    for obstacle in OBSTRACLES.copy():
+        if obstacle.has_collision(row, column):
+            OBSTRACLES_IN_LAST_COLLISIONS.append(obstacle)
+            return True
+
+
 async def fire(canvas,
                start_row,
                start_column,
@@ -99,13 +112,15 @@ async def fire(canvas,
     rows, columns = canvas.getmaxyx()
     max_row, max_column = rows - 1, columns - 1
     curses.beep()
+    is_collision = False
 
-    while 0 < row < max_row and 0 < column < max_column:
+    while 0 < row < max_row and 0 < column < max_column and not is_collision:
         canvas.addstr(round(row), round(column), symbol)
         await asyncio.sleep(0)
         canvas.addstr(round(row), round(column), ' ')
         row += rows_speed
         column += columns_speed
+        is_collision = find_collision_with_obstacle(row, column)
 
 
 def get_star_pos(size):
@@ -181,11 +196,21 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         if is_space_pressed:
             COROUTINES.append(fire(canvas, start_row, start_column))
 
+        # collision whith obstracle
+        if find_collision_with_obstacle(start_row, start_column):
+            break
+    COROUTINES.append(show_gameover(canvas))
+
 
 
 async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     """Animate garbage, flying from top to bottom.
-     Сolumn position will stay same, as specified on start."""
+
+     Column position will stay same, as specified on start.
+     """
+   # logging.basicConfig(filemode='logs1.log', level=logging.INFO)
+   # LOG = logging.getLogger('ex')
+
     rows_number, columns_number = canvas.getmaxyx()
     print(column)
     column = max(column, 0)
@@ -195,16 +220,25 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
 
     uid = len(OBSTRACLES) + 1
     rows_size, columns_size = get_frame_size(garbage_frame)
-    OBSTRACLES.append(Obstacle(row,column, rows_size, columns_size, uid))
+    OBSTRACLES.append(Obstacle(row, column, rows_size, columns_size, uid))
+    is_collision = False
 
-    while row < rows_number:
+    while row < rows_number and not is_collision:
         draw_frame(canvas, row, column, garbage_frame)
         await asyncio.sleep(0)
         draw_frame(canvas, row, column, garbage_frame, negative=True)
         row += speed
 
         ind = find_obstracles(OBSTRACLES, uid)
-        OBSTRACLES[ind].move_to(row, column)
+        if find_obstracles(OBSTRACLES_IN_LAST_COLLISIONS, uid):
+            is_collision = True
+        else:
+            OBSTRACLES[ind].move_to(row, column)
+
+    OBSTRACLES.remove(OBSTRACLES[ind])
+    await explode(canvas, row, column) ## step 9 check
+     #   logging.info(f'uid {uid}, row {row}, column {column}')
+
 
 async def fill_orbit_with_garbage(frames, win_size, canvas, garbage_num=5):
     """ """
@@ -214,9 +248,10 @@ async def fill_orbit_with_garbage(frames, win_size, canvas, garbage_num=5):
 
         for garbage_frame in new_garbage_frame_list:
             garbage_column = get_garbage_column(win_size)
+            garbage_column =  win_size[1] / 2
             COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
 
-        show_obstacles(canvas, OBSTRACLES)
+        COROUTINES.append(show_obstacles(canvas, OBSTRACLES))
         await asyncio.sleep(0)
 
 
@@ -278,10 +313,8 @@ def draw(canvas):
         star_style = random.choice('+*.:')
         COROUTINES.append(blink(canvas, row, column, star_style))
 
-    # ------spacecraft and fire------
+    # ------spacecraft------
     spaceship_row, spaceship_column = win_size[0] / 2, win_size[1] / 2
-    COROUTINES.append(fire(canvas, spaceship_row + 2, spaceship_column + 2))
-
     COROUTINES.append(animate_spaceship(canvas, spaceship_row, spaceship_column, spaceship_frames))
 
     # ------draw frames------

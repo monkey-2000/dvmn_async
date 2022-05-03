@@ -19,7 +19,7 @@ class Obstacle():
 
     def get_bounding_box_frame(self):
         """increment box size to compensate obstacle movement"""
-        rows, columns = self.rows_size + 1, self.columns_size + 1
+        rows, columns = self.row_size + 1, self.column_size + 1
         return "\n".join(_get_bounding_box_lines(rows, columns))
 
     def get_bounding_box_corner_pos(self):
@@ -37,7 +37,7 @@ class Obstacle():
         """Determine if collision has occured. Return True or False."""
         return has_collision(
             (self.row, self.column),
-            (self.rows_size, self.columns_size),
+            (self.row_size, self.column_size),
             (obj_corner_row, obj_corner_column),
             (obj_size_rows, obj_size_columns),
         )
