@@ -16,6 +16,7 @@ from garbage_tools import get_garbage_column, crate_new_garbage_frame_list
 from obstracles import Obstacle, find_obstracles, show_obstacles
 from physics import update_speed
 
+
 TIC_TIMEOUT = 0.1
 ANIMATION_FOLDER = 'files'
 SPACESHIP_VEL_MUL_ROW = 10
@@ -74,7 +75,7 @@ async def blink(canvas, row, column, symbol='*'):
 
 
 def find_collision_with_obstacle(row, column):
-    for obstacle in OBSTRACLES.copy():
+    for obstacle in OBSTRACLES:
         if obstacle.has_collision(row, column):
             OBSTRACLES_IN_LAST_COLLISIONS.append(obstacle)
             return True

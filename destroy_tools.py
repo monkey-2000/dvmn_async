@@ -1,15 +1,49 @@
 import asyncio
 import curses
 
-from curses_tools import draw_frame
+from curses_tools import draw_frame, get_frame_size
+
+
+EXPLOSION_FRAMES = [
+    """\
+           (_)
+       (  (   (  (
+      () (  (  )
+        ( )  ()
+    """,
+    """\
+           (_)
+       (  (   (
+         (  (  )
+          )  (
+    """,
+    """\
+            (
+          (   (
+         (     (
+          )  (
+    """,
+    """\
+            (
+              (
+            (
+    """,
+]
 
 
 async def explode(canvas, center_row, center_column):
-    frames = ['1', '2']
-    for frame in frames:
-        draw_frame(canvas,  center_row, center_column, frame)
+    rows, columns = get_frame_size(EXPLOSION_FRAMES[0])
+    corner_row = center_row - rows / 2
+    corner_column = center_column - columns / 2
+
+    curses.beep()
+    for frame in EXPLOSION_FRAMES:
+
+        draw_frame(canvas, corner_row, corner_column, frame)
+
         await asyncio.sleep(0)
-        draw_frame(canvas, center_row, center_column, frame, negative='True')
+        draw_frame(canvas, corner_row, corner_column, frame, negative=True)
+        await asyncio.sleep(0)
 
 
 async def show_gameover(canvas):
