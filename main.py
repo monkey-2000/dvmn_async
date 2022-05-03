@@ -194,7 +194,12 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
 
         # spaceship fire
         if is_space_pressed:
-            COROUTINES.append(fire(canvas, start_row, start_column))
+          #  rows_in_frame, columns_in_frame = get_frame_size(frame) # Заменить одной функцией?!
+          #  centre_frame_position = {
+          #      'row': mean([start_row, start_row + rows_in_frame]),
+         #       'col': mean([start_column, start_column + columns_in_frame])
+         #   }
+            COROUTINES.append(fire(canvas, start_row + 2, start_column + 2))
 
         # collision whith obstracle
         if find_collision_with_obstacle(start_row, start_column):
@@ -298,7 +303,6 @@ def draw(canvas):
         except NoFrameFile:
             exit(f'Frame files {garbage_file_name} not found in ANIMATION_FOLDER directory')
         else:
-            #garbage.append((garbage_frame, garbage_file_name))
             garbage_frames.append(garbage_frame[0])
 
 

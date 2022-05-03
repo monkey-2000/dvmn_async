@@ -11,6 +11,7 @@ async def explode(canvas, center_row, center_column):
         await asyncio.sleep(0)
         draw_frame(canvas, center_row, center_column, frame, negative='True')
 
+
 async def show_gameover(canvas):
 
     win_size = curses.window.getmaxyx(canvas)
