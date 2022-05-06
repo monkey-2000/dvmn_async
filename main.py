@@ -13,19 +13,20 @@ from curses_tools import read_controls, draw_frame, get_frame_size
 from itertools import cycle as cycle
 
 from destroy_tools import explode, show_game_over
-from garbage_tools import get_garbage_column, crate_new_garbage_frame_list
-from global_constants import BASE_DIR, LOG_LEVEL, DEBUG, LOG
+from garbage_tools import get_garbage_column, crate_new_garbage_frame_list, get_max_garbage_amount_at_year
+from global_constants import BASE_DIR, LOG_LEVEL, DEBUG, LOG, TIC_TIMEOUT, START_YEAR, SECONDS_IN_YEAR
 from obstracles import Obstacle, find_obstracles, show_obstacles
 from physics import update_speed
 
-TIC_TIMEOUT = 0.1
+# TIC_TIMEOUT = 0.1
+from time_tools import sleep, calc_delay, TimeFlow
+
 ANIMATION_FOLDER = 'files'
 SPACESHIP_VEL_MUL_ROW = 10
 SPACESHIP_VEL_MUL_COL = 10
 COROUTINES = []
 OBSTRACLES = []
 OBSTRACLES_IN_LAST_COLLISIONS = []
-
 
 def write_log(msgs, args):
 
@@ -46,13 +47,16 @@ class CoroutineParams(EventLoopCommand):
         self.spaceship_pos = new_pos
 
 
-def calc_delay(time):
-    return int(time / TIC_TIMEOUT)
+# def calc_delay(time):
+#     return int(time / TIC_TIMEOUT)
+#
+#
+# async def sleep(sleep_frames=1):
+#     for _ in range(sleep_frames):
+#         await asyncio.sleep(0)
 
 
-async def sleep(sleep_frames=1):
-    for _ in range(sleep_frames):
-        await asyncio.sleep(0)
+
 
 
 async def blink(canvas, row, column, symbol='*'):
@@ -84,9 +88,6 @@ def find_collision_with_obstacle(row, column):
     for obstacle in OBSTRACLES:
         if obstacle.has_collision(row, column):
             OBSTRACLES_IN_LAST_COLLISIONS.append(obstacle)
-
-        #    write_log('collision with obstracle')
-            LOG.info(f'collision with obstracle: row {row}, col {column}')
             return True
 
 
@@ -131,9 +132,6 @@ async def fire(canvas,
         row += rows_speed
         column += columns_speed
         is_collision = find_collision_with_obstacle(row, column)
-
-        LOG.info(f'fire collision: row {row}, col {column}')
-       # write_log('fire collision: row %s, col %s')
 
 
 def get_star_pos(size):
@@ -246,12 +244,17 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
         await explode(canvas, row, column)
 
 
-async def fill_orbit_with_garbage(frames, win_size, canvas, garbage_num=5):
+async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
     """ """
-    while True:
-        await sleep(sleep_frames=1)
+    new_garbage_frame_list = []
 
-        new_garbage_frame_list = crate_new_garbage_frame_list(frames, garbage_num)
+    while True:
+        await sleep()
+
+        garbage_num = get_max_garbage_amount_at_year(time_flow.current_year)
+
+        if garbage_num:
+            new_garbage_frame_list = crate_new_garbage_frame_list(frames, garbage_num)
 
         for garbage_frame in new_garbage_frame_list:
             garbage_column = get_garbage_column(win_size)
@@ -309,8 +312,12 @@ def draw(canvas):
     curses.window.nodelay(canvas, True)
     win_size = curses.window.getmaxyx(canvas)
 
+    # ------time-------
+    timeflow = TimeFlow(current_year=START_YEAR)
+    COROUTINES.extend([timeflow.run(SECONDS_IN_YEAR), timeflow.show_year_box(canvas)])
+
     # ------garbage-------
-    COROUTINES.append(fill_orbit_with_garbage(garbage_frames, win_size, canvas, 2))
+    COROUTINES.append(fill_orbit_with_garbage(garbage_frames, win_size, canvas, timeflow))
     # ------stars-------
     num_stars = random.randint(5, 6)
 
