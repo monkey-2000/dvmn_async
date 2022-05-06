@@ -1,3 +1,4 @@
+
 PHRASES = {
     # Только на английском, Repl.it ломается на кириллице
     1957: "First Sputnik",
@@ -9,6 +10,7 @@ PHRASES = {
     2011: 'Messenger launch to Mercury',
     2020: "Take the plasma gun! Shoot the garbage!",
 }
+
 
 def get_garbage_delay_tics(year):
     if year < 1961:
@@ -25,3 +27,10 @@ def get_garbage_delay_tics(year):
         return 6
     else:
         return 2
+
+def get_max_garbage_amount(year):
+
+    if year > 1961:
+        k = 10/2020
+        return k * year
+
