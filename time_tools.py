@@ -12,7 +12,7 @@ class TimeFlow:
 
     async def run(self, year_in_seconds):
         while True:
-            await sleep(year_in_seconds)
+            await sleep(calc_delay(year_in_seconds))
             self.current_year += 1
 
     async def show_year_box(self, canvas, nlines=10, ncols=10):

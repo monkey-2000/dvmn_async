@@ -13,6 +13,7 @@ from curses_tools import read_controls, draw_frame, get_frame_size
 from itertools import cycle as cycle
 
 from destroy_tools import explode, show_game_over
+from game_scenario import get_garbage_delay_tics
 from garbage_tools import get_garbage_column, crate_new_garbage_frame_list, get_max_garbage_amount_at_year
 from global_constants import BASE_DIR, LOG_LEVEL, DEBUG, LOG, TIC_TIMEOUT, START_YEAR, SECONDS_IN_YEAR
 from obstracles import Obstacle, find_obstracles, show_obstacles
@@ -229,7 +230,10 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
 
     while row < rows_number and not is_collision:
         draw_frame(canvas, row, column, garbage_frame)
-        await asyncio.sleep(0)
+
+      #  delay_tick = get_garbage_delay_tics(time_flow.current_year)
+        await sleep()
+
         draw_frame(canvas, row, column, garbage_frame, negative=True)
         row += speed
 
@@ -246,7 +250,6 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
 
 async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
     """ """
-    new_garbage_frame_list = []
 
     while True:
         await sleep()
@@ -255,13 +258,18 @@ async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
 
         if garbage_num:
             new_garbage_frame_list = crate_new_garbage_frame_list(frames, garbage_num)
+        else:
+            new_garbage_frame_list = []
 
         for garbage_frame in new_garbage_frame_list:
             garbage_column = get_garbage_column(win_size)
             COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
 
         COROUTINES.append(show_obstacles(canvas, OBSTRACLES))
-        await asyncio.sleep(0)
+
+        delay_ticks = get_garbage_delay_tics(time_flow.current_year)
+        delay_ticks = delay_ticks if delay_ticks else 0
+        await sleep(delay_ticks)
 
 
 def load_frames(folder, key_word='sc'):

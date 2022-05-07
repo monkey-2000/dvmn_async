@@ -10,5 +10,5 @@ LOG = logging.getLogger("ex")
 
 
 TIC_TIMEOUT = 0.1
-SECONDS_IN_YEAR = 5
+SECONDS_IN_YEAR = 1.5
 START_YEAR = 1957

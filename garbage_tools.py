@@ -11,7 +11,6 @@ class GarbageCoroutineParams(EventLoopCommand):
         self.garbage_pos = new_pos
 
 
-
 def get_garbage_column(size):
     """get random garbage column position"""
     dim = size[1]
@@ -34,9 +33,9 @@ def crate_new_garbage_frame_list(garbage_frames, garbage_num_max=None):
 
 def get_max_garbage_amount_at_year(
                              year,
-                             start_amount=0,
+                             start_amount=1,
                              start_year=1961,
-                             second_amount=3,
+                             second_amount=5,
                              second_year=2020):
     amount_angle = (second_amount - start_amount) / (second_year - start_year)
     b = start_amount - start_year * amount_angle
