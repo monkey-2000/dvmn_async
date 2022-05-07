@@ -106,7 +106,8 @@ def has_collision(obstacle_corner, obstacle_size, obj_corner, obj_size=(1, 1)):
 
 
 def find_obstracles(obstracles, uid):
+
     for ind, obstracle in enumerate(obstracles):
         if obstracle.uid == uid:
             return ind
-    return False
+    return -1

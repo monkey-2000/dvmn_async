@@ -34,6 +34,7 @@ def write_log(msgs, args):
     if DEBUG:
         logging.debug(msgs, args)
 
+
 class NoFrameFile(Exception):
     pass
 
@@ -46,18 +47,6 @@ class EventLoopCommand:
 class CoroutineParams(EventLoopCommand):
     def __init__(self, new_pos=None):
         self.spaceship_pos = new_pos
-
-
-# def calc_delay(time):
-#     return int(time / TIC_TIMEOUT)
-#
-#
-# async def sleep(sleep_frames=1):
-#     for _ in range(sleep_frames):
-#         await asyncio.sleep(0)
-
-
-
 
 
 async def blink(canvas, row, column, symbol='*'):
@@ -89,6 +78,9 @@ def find_collision_with_obstacle(row, column):
     for obstacle in OBSTRACLES:
         if obstacle.has_collision(row, column):
             OBSTRACLES_IN_LAST_COLLISIONS.append(obstacle)
+            logging.info(f'collision with {obstacle.uid} {row}, {column}')
+            for i in OBSTRACLES_IN_LAST_COLLISIONS:
+                logging.info(f'OBSTRACLES_IN_LAST_COLLISIONS{i.uid}')
             return True
 
 
@@ -209,6 +201,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         # collision whith obstracle
         if find_collision_with_obstacle(start_row, start_column):
             break
+
     COROUTINES.append(show_game_over(canvas))
 
 
@@ -231,19 +224,24 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     while row < rows_number and not is_collision:
         draw_frame(canvas, row, column, garbage_frame)
 
-      #  delay_tick = get_garbage_delay_tics(time_flow.current_year)
         await sleep()
 
         draw_frame(canvas, row, column, garbage_frame, negative=True)
         row += speed
 
         ind = find_obstracles(OBSTRACLES, uid)
-        if find_obstracles(OBSTRACLES_IN_LAST_COLLISIONS, uid):
+
+        logging.info(f'obstracle uid{uid}, ind {ind}')
+        collision_obstracle_ind = find_obstracles(OBSTRACLES_IN_LAST_COLLISIONS, uid)
+        if collision_obstracle_ind >= 0:
             is_collision = True
+            logging.info(f'collision with obstracle uid{uid}, ind {ind}')
         else:
             OBSTRACLES[ind].move_to(row, column)
 
     OBSTRACLES.remove(OBSTRACLES[ind])
+    OBSTRACLES_IN_LAST_COLLISIONS.remove(OBSTRACLES_IN_LAST_COLLISIONS[collision_obstracle_ind])
+
     if is_collision:
         await explode(canvas, row, column)
 
@@ -263,6 +261,7 @@ async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
 
         for garbage_frame in new_garbage_frame_list:
             garbage_column = get_garbage_column(win_size)
+            garbage_column = win_size[1] / 2
             COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
 
         COROUTINES.append(show_obstacles(canvas, OBSTRACLES))
@@ -354,9 +353,6 @@ def draw(canvas):
 
 
 def main():
-    logging.basicConfig(
-        filename=os.path.join(BASE_DIR, "../spaceship.log"), level=LOG_LEVEL
-    )
     curses.update_lines_cols()
     curses.wrapper(draw)
 
