@@ -1,7 +1,6 @@
 import asyncio
 import dataclasses
 
-from curses_tools import draw_frame
 from global_constants import TIC_TIMEOUT
 
 
@@ -18,10 +17,11 @@ class TimeFlow:
     async def show_year_box(self, canvas, nlines=10, ncols=10):
 
         year_window = canvas.derwin(nlines, ncols, 0, 0)
+        year_window.nodelay(True)
         while True:
-            canvas.addstr(0, 0, f'{self.current_year} year')
+            year_window.addstr(0, 0, f'{self.current_year} year')
             await sleep()
-            canvas.addstr(0, 0, ' ')
+            year_window.refresh()
 
 def calc_delay(time):
     return int(time / TIC_TIMEOUT)

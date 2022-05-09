@@ -1,4 +1,3 @@
-import logging
 import os
 
 import asyncio
@@ -14,13 +13,11 @@ from itertools import cycle as cycle
 
 from destroy_tools import explode, show_game_over
 from game_scenario import get_garbage_delay_tics
-from garbage_tools import get_garbage_column, crate_new_garbage_frame_list, get_max_garbage_amount_at_year
-from global_constants import BASE_DIR, LOG_LEVEL, DEBUG, LOG, TIC_TIMEOUT, START_YEAR, SECONDS_IN_YEAR, GUN_YEAR, \
+from garbage_tools import get_garbage_column, crate_new_garbage_frame_array, get_max_garbage_amount_at_frame
+from global_constants import TIC_TIMEOUT, START_YEAR, SECONDS_IN_YEAR, GUN_YEAR, \
     SPACESHIP_VEL_MUL_ROW, ANIMATION_FOLDER
 from obstracles import Obstacle, find_obstracles, show_obstacles, generate_obstracle_uid
 from physics import update_speed
-
-# TIC_TIMEOUT = 0.1
 from time_tools import sleep, calc_delay, TimeFlow
 
 COROUTINES = []
@@ -30,16 +27,6 @@ OBSTRACLES_IN_LAST_COLLISIONS = []
 
 class NoFrameFile(Exception):
     pass
-
-
-class EventLoopCommand:
-    def __await__(self):
-        return (yield self)
-
-
-class CoroutineParams(EventLoopCommand):
-    def __init__(self, new_pos=None):
-        self.spaceship_pos = new_pos
 
 
 async def blink(canvas, row, column, symbol='*'):
@@ -68,12 +55,10 @@ async def blink(canvas, row, column, symbol='*'):
 
 
 def find_collision_with_obstacle(row, column):
+    """is spaceship shot or spaceship run into with obstacle"""
     for obstacle in OBSTRACLES:
         if obstacle.has_collision(row, column):
             OBSTRACLES_IN_LAST_COLLISIONS.append(obstacle)
-            logging.info(f'collision with {obstacle.uid} {row}, {column}')
-            for i in OBSTRACLES_IN_LAST_COLLISIONS:
-                logging.info(f'OBSTRACLES_IN_LAST_COLLISIONS{i.uid}')
             return True
 
 
@@ -169,7 +154,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames, time_flow):
     for frame in cycle(frames):
         draw_frame(canvas, start_row, start_column, frame)
 
-        await CoroutineParams((start_row + 2, start_column + 2))
+        await sleep()
 
         draw_frame(canvas, start_row, start_column, frame, negative=True)
 
@@ -191,7 +176,6 @@ async def animate_spaceship(canvas, start_row, start_column, frames, time_flow):
         if is_space_pressed and time_flow.current_year >= GUN_YEAR:
             COROUTINES.append(fire(canvas, start_row + 2, start_column + 2))
 
-        # collision whith obstracle
         if find_collision_with_obstacle(start_row, start_column):
             break
 
@@ -210,7 +194,6 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     row = 0
 
     uid = generate_obstracle_uid()
-    logging.info(f'new obstracle {uid}')
     rows_size, columns_size = get_frame_size(garbage_frame)
     OBSTRACLES.append(Obstacle(row, column, rows_size, columns_size, uid))
     is_collision = False
@@ -225,38 +208,32 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
 
         ind = find_obstracles(OBSTRACLES, uid)
 
-        logging.info(f'obstracle uid{uid}, ind {ind}')
         collision_obstracle_ind = find_obstracles(OBSTRACLES_IN_LAST_COLLISIONS, uid)
         if collision_obstracle_ind >= 0:
             is_collision = True
             OBSTRACLES_IN_LAST_COLLISIONS.remove(OBSTRACLES_IN_LAST_COLLISIONS[collision_obstracle_ind])
-            logging.info(f'collision with obstracle uid{uid}, ind {ind}')
         else:
             OBSTRACLES[ind].move_to(row, column)
 
     OBSTRACLES.remove(OBSTRACLES[ind])
     if is_collision:
         await explode(canvas, row, column)
-    #else:
-    #    OBSTRACLES_IN_LAST_COLLISIONS.append(OBSTRACLES[ind])
-
-
 
 
 async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
-    """ """
+    """generate new garbage"""
 
     while True:
         await sleep()
 
-        garbage_num = get_max_garbage_amount_at_year(time_flow.current_year)
+        garbage_num = get_max_garbage_amount_at_frame(time_flow.current_year)
 
         if garbage_num:
-            new_garbage_frame_list = crate_new_garbage_frame_list(frames, garbage_num)
+            new_garbage_frame_array = crate_new_garbage_frame_array(frames, garbage_num)
         else:
-            new_garbage_frame_list = []
+            new_garbage_frame_array = []
 
-        for garbage_frame in new_garbage_frame_list:
+        for garbage_frame in new_garbage_frame_array:
             garbage_column = get_garbage_column(win_size)
             COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
 

@@ -18,7 +18,7 @@ def get_garbage_column(size):
     return column
 
 
-def crate_new_garbage_frame_list(garbage_frames, garbage_num_max=None):
+def crate_new_garbage_frame_array(garbage_frames, garbage_num_max=None):
     """"""
     if not garbage_num_max:
         garbage_num = random.randint(0, 3)
@@ -31,7 +31,7 @@ def crate_new_garbage_frame_list(garbage_frames, garbage_num_max=None):
     return garbage_list
 
 
-def get_max_garbage_amount_at_year(
+def get_max_garbage_amount_at_frame(
                              year,
                              start_amount=1,
                              start_year=1961,
@@ -46,5 +46,5 @@ def get_max_garbage_amount_at_year(
     return 0
 
 if __name__ == '__main__':
-    a = get_max_garbage_amount_at_year(1961)
+    a = get_max_garbage_amount_at_frame(1961)
     print(a)
