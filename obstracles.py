@@ -4,7 +4,10 @@
 """obstacle class, animations and factory"""
 
 import asyncio
+import uuid
+
 from curses_tools import draw_frame
+from time_tools import sleep
 
 
 class Obstacle():
@@ -111,3 +114,8 @@ def find_obstracles(obstracles, uid):
         if obstracle.uid == uid:
             return ind
     return -1
+
+
+def generate_obstracle_uid():
+    # generate uid for new obstracle
+    return uuid.uuid4().hex
