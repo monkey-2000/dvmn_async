@@ -6,7 +6,6 @@ from global_constants import TIC_TIMEOUT
 
 @dataclasses.dataclass
 class TimeFlow:
-
     current_year: int
 
     async def run(self, year_in_seconds):
@@ -22,6 +21,7 @@ class TimeFlow:
             year_window.addstr(0, 0, f'{self.current_year} year')
             await sleep()
             year_window.refresh()
+
 
 def calc_delay(time):
     return int(time / TIC_TIMEOUT)
