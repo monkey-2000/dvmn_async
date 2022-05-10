@@ -1,16 +1,14 @@
 import os
-
 import asyncio
 import random
 import re
 import time
 from statistics import mean as mean
+from itertools import cycle as cycle
 
 import curses
 
 from curses_tools import read_controls, draw_frame, get_frame_size
-from itertools import cycle as cycle
-
 from destroy_tools import explode, show_game_over
 from game_scenario import get_garbage_delay_tics
 from garbage_tools import get_garbage_column, crate_new_garbage_frame_array, get_max_garbage_amount_at_frame
@@ -221,7 +219,7 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
 
 
 async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
-    """generate new garbage"""
+    """generate new garage"""
 
     while True:
         await sleep()
