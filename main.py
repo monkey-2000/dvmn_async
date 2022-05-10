@@ -13,7 +13,7 @@ from destroy_tools import explode, show_game_over
 from game_scenario import get_garbage_delay_tics
 from garbage_tools import get_garbage_column, crate_new_garbage_frame_array, get_max_garbage_amount_at_frame
 from global_constants import TIC_TIMEOUT, START_YEAR, SECONDS_IN_YEAR, GUN_YEAR, \
-    SPACESHIP_VEL_MUL_ROW, ANIMATION_FOLDER
+    SPACESHIP_VEL_MUL_ROW, ANIMATION_FOLDER, DEBUG
 from obstracles import Obstacle, find_obstracles, show_obstacles, generate_obstracle_uid
 from physics import update_speed
 from time_tools import sleep, calc_delay, TimeFlow
@@ -104,7 +104,7 @@ async def fire(canvas,
 
 
 def get_star_pos(size):
-    """get random star position"""
+    """Get random star position."""
     pos = []
     for dim in size:
         pos.append(random.randint(1, dim - 1))
@@ -112,7 +112,7 @@ def get_star_pos(size):
 
 
 def get_corrected_position(obj, canvas, obj_start_row, obj_start_col, frame_borders={'row': 1, 'col': 1}):
-    """text pos (moving obj) validation: text must be in a frame"""
+    """Text pos (moving obj) validation: text must be in a frame."""
     rows_in_obj, columns_in_obj = get_frame_size(obj)
 
     max_row, max_col = canvas.getmaxyx()
@@ -170,7 +170,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames, time_flow):
         start_row, start_column = get_corrected_position(frame, canvas,
                                                          start_row, start_column)
 
-        # spaceship fire
+        # spaceship gun shot
         if is_space_pressed and time_flow.current_year >= GUN_YEAR:
             COROUTINES.append(fire(canvas, start_row + 2, start_column + 2))
 
@@ -235,7 +235,8 @@ async def fill_orbit_with_garbage(frames, win_size, canvas, time_flow):
             garbage_column = get_garbage_column(win_size)
             COROUTINES.append(fly_garbage(canvas, garbage_column, garbage_frame))
 
-        COROUTINES.append(show_obstacles(canvas, OBSTRACLES))
+        if DEBUG:
+            COROUTINES.append(show_obstacles(canvas, OBSTRACLES))
 
         delay_ticks = get_garbage_delay_tics(time_flow.current_year)
         delay_ticks = delay_ticks if delay_ticks else 0
